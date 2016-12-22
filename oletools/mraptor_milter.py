@@ -53,8 +53,9 @@ http://www.decalage.info/python/oletools
 #                      - archive each e-mail to a file before filtering
 # 2016-08-30 v0.03 PL: - added daemonize to run as a Unix daemon
 # 2016-09-06 v0.50 PL: - fixed issue #20, is_zipfile on Python 2.6
+# 2016-12-22 v0.51 ST: - Add ARCHIVE_ENABLE and REJECT_MESSAGE switch
 
-__version__ = '0.50'
+__version__ = '0.51'
 
 # --- TODO -------------------------------------------------------------------
 
@@ -109,11 +110,7 @@ TIMEOUT = 30  # Milter timeout in seconds
 # CFG_DIR = "/etc/macromilter/"
 # LOG_DIR = "/var/log/macromilter/"
 
-# TODO: different path on Windows:
-LOGFILE_DIR = '/var/log/mraptor_milter'
-# LOGFILE_DIR = '.'
-LOGFILE_NAME = 'mraptor_milter.log'
-LOGFILE_PATH = os.path.join(LOGFILE_DIR, LOGFILE_NAME)
+# === ARCHIVING ================================================================
 
 # Directory where to save a copy of each received e-mail:
 ARCHIVE_DIR = '/var/log/mraptor_milter'
@@ -121,8 +118,12 @@ ARCHIVE_DIR = '/var/log/mraptor_milter'
 # Disable or activates the archive function - recomandation: disable on high volume systems 
 ARCHIVE_ENABLE = True 
 
+# === DEAMON ================================================================
+
 # file to store PID for daemonize
 PIDFILE = "/tmp/mraptor_milter.pid"
+# Reject the mail if a malware macro is detected
+REJECT_MESSAGE = True
 
 # === LOGGING ================================================================
 
@@ -132,9 +133,15 @@ log = logging.getLogger('MRMilter')
 # disable logging by default - enable it in main app:
 log.setLevel(logging.CRITICAL+1)
 
+# TODO: different path on Windows:
+LOGFILE_DIR = '/var/log/mraptor_milter'
+# LOGFILE_DIR = '.'
+LOGFILE_NAME = 'mraptor_milter.log'
+LOGFILE_PATH = os.path.join(LOGFILE_DIR, LOGFILE_NAME)
+
 # NOTE: all logging config is done in the main app, not here.
 
-# === CLASSES ================================================================
+# --- CLASSES --------------------------------------------------------------
 
 # Inspired from https://github.com/jmehnle/pymilter/blob/master/milter-template.py
 
@@ -293,7 +300,12 @@ class MacroRaptorMilter(Milter.Base):
 		:return: Milter.ACCEPT or Milter.DISCARD if processing error
 		'''
 		msg = email.message_from_string(self.message.getvalue())
-		result = Milter.ACCEPT
+
+		if REJECT_MESSAGE:
+			result = Milter.REJECT
+		else:
+			result = Milter.ACCEPT
+
 		try:
 			for part in msg.walk():
 				# for name, value in part.items():
@@ -336,13 +348,14 @@ class MacroRaptorMilter(Milter.Base):
 			log.exception('[%d] Error while processing the message' % self.id)
 			# TODO: depending on error, decide to forward the e-mail as-is or not
 			result = Milter.DISCARD
-		# TODO: only do this if the body has actually changed
-		body = str(msg)
-		self.message = io.BytesIO(body)
-		self.replacebody(body)
-		log.info('[%d] Message relayed' % self.id)
-		return result
 
+		# TODO: only do this if the body has actually changed
+		if REJECT_MESSAGE is False:
+			body = str(msg)
+			self.message = io.BytesIO(body)
+			self.replacebody(body)
+			log.info('[%d] Message relayed' % self.id)
+		return result
 
 # === MAIN ===================================================================
 

@@ -98,3 +98,6 @@ ENV/
 .ropeproject
 
 /temp/
+/.vs/VSWorkspaceState.json
+/.vs/slnx.sqlite
+/.vs/oletools/v15/.suo
